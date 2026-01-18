@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.mapbox.com)",
+      "Skill(bmad:bmm:workflows:create-architecture)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Skill(bmad:bmm:workflows:create-epics-and-stories)",
+      "Skill(bmad:bmm:workflows:dev-story)",
+      "Bash(curl:*)",
+      "WebFetch(domain:www.mapbox.com)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
