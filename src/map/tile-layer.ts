@@ -130,6 +130,9 @@ export function updateTileLayer(): void {
     type: 'FeatureCollection',
     features
   })
+
+  // Ensure markers stay on top after tile layer updates
+  bringMarkersToFront()
 }
 
 /**
