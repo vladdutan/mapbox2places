@@ -14,7 +14,7 @@ export function renderLayout(container: HTMLElement): void {
       <header id="header" class="flex-none h-14 bg-white border-b border-gray-200 shadow-sm z-10">
         <div class="flex items-center h-full px-4 gap-4">
           <h1 class="text-lg font-semibold text-gray-800 whitespace-nowrap">map2places</h1>
-          <div id="search-container" class="flex-1 max-w-md relative">
+          <div id="search-container" class="flex-none max-w-md relative">
             <form id="search-form" class="relative flex gap-2">
               <div class="relative flex-1">
                 <input
@@ -42,8 +42,17 @@ export function renderLayout(container: HTMLElement): void {
             <div id="search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
             </div>
           </div>
+          
+          <!-- Divider -->
+          <div class="h-8 w-px bg-gray-300 flex-none"></div>
+          
+          <!-- Regions History Container -->
+          <div id="regions-history" class="flex-1 flex gap-2 overflow-x-auto items-center" style="scrollbar-width: thin;">
+            <!-- Dynamically populated by stats-panel -->
+          </div>
+          
           <!-- Search Error Message -->
-          <div id="search-error" class="hidden text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg"></div>
+          <div id="search-error" class="hidden text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg flex-none"></div>
         </div>
       </header>
 

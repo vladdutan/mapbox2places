@@ -19,6 +19,7 @@ import { initializePersistence, restoreFromStorage } from './storage/persistence
 import { handleError } from './utils/error-handler'
 import { ErrorCategory } from './types/events.types'
 import { renderApiKeyInput, shouldShowApiKeyInput } from './ui/api-key-input'
+import { initializeGoogleMaps } from './api/providers/google-provider'
 
 /**
  * Initialize the application
@@ -80,6 +81,9 @@ async function initializeMapAndComponents(
     initializeMarkerLayer()
     initializeStatsPanel()
     initializeTileFetcher()
+    
+    // Auto-init Google Maps provided env var exists
+    initializeGoogleMaps()
 
     // Initialize persistence (auto-save to IndexedDB)
     await initializePersistence()

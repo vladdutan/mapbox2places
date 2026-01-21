@@ -5,6 +5,7 @@
 
 import type { Place } from '../types/exploration.types'
 import type { PlaceSelectedPayload } from '../types/events.types'
+import { PROVIDER_NAMES } from '../types/provider.types'
 import { POI_CATEGORIES } from '../state/store'
 
 const MODAL_CONTAINER_ID = 'place-modal-container'
@@ -105,11 +106,12 @@ export function showPlaceModal(place: Place): void {
             </p>
           </div>
 
-          <!-- Mapbox ID -->
+          <!-- Provider ID -->
           <div>
-            <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Mapbox ID</h3>
-            <p class="text-xs text-gray-400 font-mono truncate" title="${escapeHtml(place.mapboxId)}">
-              ${escapeHtml(place.mapboxId)}
+            <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Source</h3>
+            <p class="text-sm text-gray-600">${PROVIDER_NAMES[place.provider]}</p>
+            <p class="text-xs text-gray-400 font-mono truncate mt-1" title="${escapeHtml(place.providerId)}">
+              ${escapeHtml(place.providerId)}
             </p>
           </div>
         </div>
