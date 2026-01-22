@@ -1,6 +1,6 @@
 /**
  * Provider abstraction types
- * Defines common interface for POI data providers (Mapbox, Google, OSM)
+ * Defines common interface for POI data providers (Mapbox, Google, Foursquare)
  */
 
 /**
@@ -8,7 +8,8 @@
  */
 export const Provider = {
   Mapbox: 'mapbox',
-  Google: 'google'
+  Google: 'google',
+  Foursquare: 'foursquare'
 } as const
 
 export type Provider = typeof Provider[keyof typeof Provider]
@@ -73,7 +74,8 @@ export type ProviderConfigs = {
  */
 export const PROVIDER_COSTS: Record<Provider, number> = {
   [Provider.Mapbox]: 1.70,    // $1.70 per 1000 requests
-  [Provider.Google]: 32.00    // $32.00 per 1000 requests (Nearby Search Pro - first 5K/month free)
+  [Provider.Google]: 32.00,   // $32.00 per 1000 requests (Nearby Search Pro - first 5K/month free)
+  [Provider.Foursquare]: 15.00 // $15.00 per 1000 requests (Pro endpoints - first 10K/month free)
 }
 
 /**
@@ -81,7 +83,8 @@ export const PROVIDER_COSTS: Record<Provider, number> = {
  */
 export const PROVIDER_NAMES: Record<Provider, string> = {
   [Provider.Mapbox]: 'Mapbox',
-  [Provider.Google]: 'Google Maps'
+  [Provider.Google]: 'Google Maps',
+  [Provider.Foursquare]: 'Foursquare'
 }
 
 /**
@@ -89,5 +92,6 @@ export const PROVIDER_NAMES: Record<Provider, string> = {
  */
 export const PROVIDER_COLORS: Record<Provider, string> = {
   [Provider.Mapbox]: '#3b82f6',     // Blue
-  [Provider.Google]: '#ef4444'      // Red
+  [Provider.Google]: '#ef4444',     // Red
+  [Provider.Foursquare]: '#22c55e'  // Green
 }

@@ -26,7 +26,7 @@ export interface Tile {
 export interface TileProviderStatus {
   mapbox?: 'pending' | 'complete' | 'error'
   google?: 'pending' | 'complete' | 'error'
-  osm?: 'pending' | 'complete' | 'error'
+  foursquare?: 'pending' | 'complete' | 'error'
 }
 
 export enum TileStatus {

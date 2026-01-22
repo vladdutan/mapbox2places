@@ -9,7 +9,7 @@ import { initializeRegionLayer } from './map/region-layer'
 import { initializeRegionEditor } from './map/region-editor'
 import { initializeMarkerLayer } from './map/marker-layer'
 import { initializeTileLayer } from './map/tile-layer'
-import { renderLayout, getMapContainer } from './ui/layout'
+import { renderLayout, getMapContainer, getSettingsButton } from './ui/layout'
 import { initializeSearch } from './ui/search'
 import { initializeSearchResults } from './ui/search-results'
 import { initializeStatsPanel } from './ui/stats-panel'
@@ -47,6 +47,39 @@ async function init(): Promise<void> {
   const mapContainer = getMapContainer()
   if (!mapContainer) {
     throw new Error('Map container not found after layout render')
+  }
+
+  // Settings button handler
+  const settingsButton = getSettingsButton()
+  if (settingsButton) {
+    settingsButton.addEventListener('click', () => {
+      // Create a modal container if it doesn't exist
+      let modalContainer = document.getElementById('settings-modal-container')
+      if (!modalContainer) {
+        modalContainer = document.createElement('div')
+        modalContainer.id = 'settings-modal-container'
+        document.body.appendChild(modalContainer)
+      }
+      
+      const closeModal = () => {
+        if (modalContainer) {
+          modalContainer.innerHTML = ''
+          modalContainer.remove()
+        }
+      }
+
+      renderApiKeyInput(
+        modalContainer,
+        () => {
+          // On save: close modal and trigger config update event
+          closeModal()
+          // Re-initialize Google Maps if key changed/added
+          initializeGoogleMaps()
+          window.dispatchEvent(new CustomEvent('state:changed', { detail: { type: 'config' } }))
+        },
+        closeModal // On cancel
+      )
+    })
   }
 
   // Check if API key is configured
@@ -92,7 +125,7 @@ async function initializeMapAndComponents(
     await restoreFromStorage()
 
     const loadTime = performance.now() - startTime
-    console.log(`App initialized in ${loadTime.toFixed(0)}ms`)
+
 
     // Log warning if load time exceeds NFR5 threshold
     if (loadTime > 3000) {

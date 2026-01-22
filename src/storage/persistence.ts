@@ -144,14 +144,14 @@ export async function restoreFromStorage(): Promise<void> {
     const regions = await getAllRegions()
     if (regions.length > 0) {
       restoreRegions(regions)
-      console.log(`Restored ${regions.length} regions from storage`)
+
     }
 
     // Load explorations
     const explorations = await getAllExplorations()
     if (explorations.length > 0) {
       restoreExplorations(explorations)
-      console.log(`Restored ${explorations.length} explorations from storage`)
+
     }
 
     // Load places for each region
@@ -168,7 +168,7 @@ export async function restoreFromStorage(): Promise<void> {
       const tiles = await getTilesByExplorationId(exploration.id)
       if (tiles.length > 0) {
         restoreTiles(exploration.id, tiles)
-        console.log(`Restored ${tiles.length} tiles for exploration ${exploration.id}`)
+
       }
     }
 

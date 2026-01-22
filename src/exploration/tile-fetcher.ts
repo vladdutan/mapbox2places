@@ -32,11 +32,11 @@ export function resumeExploration(exploration: Exploration): void {
   const pendingTiles = tiles.filter(t => t.status === TileStatus.Pending)
 
   if (pendingTiles.length === 0) {
-    console.log(`Exploration ${exploration.id} has no pending tiles to resume`)
+
     return
   }
 
-  console.log(`Resuming exploration ${exploration.id} with ${pendingTiles.length} pending tiles`)
+
   processTiles(exploration)
 }
 
@@ -51,6 +51,7 @@ async function processTiles(exploration: Exploration): Promise<void> {
   // Process tiles using per-provider queues to ensure fast providers aren't blocked by slow ones
   const CONCURRENT_MAPBOX = 6
   const CONCURRENT_GOOGLE = 6
+  const CONCURRENT_FOURSQUARE = 6
 
   // Create queues for each provider
   const tasks: (() => Promise<void>)[] = []
@@ -93,6 +94,7 @@ async function processTiles(exploration: Exploration): Promise<void> {
   
   const mapboxQueue: (() => Promise<void>)[] = []
   const googleQueue: (() => Promise<void>)[] = []
+  const foursquareQueue: (() => Promise<void>)[] = []
 
   // Distribute tasks
   for (const tile of pendingTiles) {
@@ -103,6 +105,7 @@ async function processTiles(exploration: Exploration): Promise<void> {
        
        if (pId === Provider.Mapbox) mapboxQueue.push(task)
        else if (pId === Provider.Google) googleQueue.push(task)
+       else if (pId === Provider.Foursquare) foursquareQueue.push(task)
      }
   }
 
@@ -126,7 +129,8 @@ async function processTiles(exploration: Exploration): Promise<void> {
   // Fire them all off "separately"
   await Promise.all([
     runQueue(mapboxQueue, CONCURRENT_MAPBOX),
-    runQueue(googleQueue, CONCURRENT_GOOGLE)
+    runQueue(googleQueue, CONCURRENT_GOOGLE),
+    runQueue(foursquareQueue, CONCURRENT_FOURSQUARE)
   ])
 
   // Check completion after all queues are done
@@ -187,7 +191,7 @@ async function processTileProvider(exploration: Exploration, tile: Tile, provide
         }))
       }
 
-      console.log(`Tile ${tile.id} - ${provider.getName()}: ${places.length} places for ${category}`)
+
     } catch (error) {
        errorCount++
        console.error(`Provider ${provider.getName()} failed for tile ${tile.id}`, error)
@@ -195,7 +199,9 @@ async function processTileProvider(exploration: Exploration, tile: Tile, provide
   }
 
   // Update provider status
-  const providerKey = providerId === Provider.Mapbox ? 'mapbox' : 'google'
+  const providerKey = providerId === Provider.Mapbox ? 'mapbox'
+    : providerId === Provider.Google ? 'google'
+    : 'foursquare'
   const status = errorCount > 0 && placesCount === 0 ? 'error' : 'complete'
   updateTileProviderStatus(explorationId, tile.id, providerKey, status)
 
@@ -206,6 +212,7 @@ async function processTileProvider(exploration: Exploration, tile: Tile, provide
     providerResults: {
       [Provider.Mapbox]: { places: 0, requests: 0, errors: 0 },
       [Provider.Google]: { places: 0, requests: 0, errors: 0 },
+      [Provider.Foursquare]: { places: 0, requests: 0, errors: 0 },
       [providerId]: { places: placesCount, requests: requestsCount, errors: errorCount }
     }
   })
@@ -226,7 +233,9 @@ function checkTileCompletion(exploration: Exploration, tileId: string) {
   const status = tile.providerStatus || {}
   
   const allDone = enabledIds.every(pid => {
-    const key = pid === Provider.Mapbox ? 'mapbox' : 'google'
+    const key = pid === Provider.Mapbox ? 'mapbox'
+      : pid === Provider.Google ? 'google'
+      : 'foursquare'
     return status[key] === 'complete' || status[key] === 'error'
   })
 

@@ -75,7 +75,7 @@ export interface POIProvider {
 export interface CategoryMapping {
   mapbox: string | string[]
   google: string | string[]
-  osm: string // Overpass query format: "key=value"
+  foursquare: string // Foursquare category ID
 }
 
 /**
@@ -85,52 +85,52 @@ export const CATEGORY_MAPPINGS: Record<StandardCategory, CategoryMapping> = {
   [StandardCategory.Grocery]: {
     mapbox: 'grocery',
     google: 'supermarket',
-    osm: 'shop=supermarket|shop=convenience'
+    foursquare: '4bf58dd8d48988d118951735'
   },
   [StandardCategory.Restaurant]: {
     mapbox: 'restaurant',
     google: 'restaurant',
-    osm: 'amenity=restaurant'
+    foursquare: '4bf58dd8d48988d1c4941735'
   },
   [StandardCategory.Cafe]: {
     mapbox: 'cafe',
     google: 'cafe',
-    osm: 'amenity=cafe'
+    foursquare: '4bf58dd8d48988d1e0931735'
   },
   [StandardCategory.Bank]: {
     mapbox: 'bank',
     google: 'bank',
-    osm: 'amenity=bank'
+    foursquare: '4bf58dd8d48988d10a951735'
   },
   [StandardCategory.Pharmacy]: {
     mapbox: 'pharmacy',
     google: 'pharmacy',
-    osm: 'amenity=pharmacy'
+    foursquare: '4bf58dd8d48988d10f951735'
   },
   [StandardCategory.GasStation]: {
     mapbox: 'gas_station',
     google: 'gas_station',
-    osm: 'amenity=fuel'
+    foursquare: '4bf58dd8d48988d113951735'
   },
   [StandardCategory.Hotel]: {
     mapbox: 'hotel',
     google: 'hotel',
-    osm: 'tourism=hotel'
+    foursquare: '4bf58dd8d48988d1fa931735'
   },
   [StandardCategory.Hospital]: {
     mapbox: 'hospital',
     google: 'hospital',
-    osm: 'amenity=hospital'
+    foursquare: '4bf58dd8d48988d196941735'
   },
   [StandardCategory.Parking]: {
     mapbox: 'parking',
     google: 'parking',
-    osm: 'amenity=parking'
+    foursquare: '4c38df4de52ce0d596b336e1'
   },
   [StandardCategory.ATM]: {
     mapbox: 'atm',
     google: 'atm',
-    osm: 'amenity=atm'
+    foursquare: '52f2ab2ebcbc57f1066b8b56'
   }
 }
 

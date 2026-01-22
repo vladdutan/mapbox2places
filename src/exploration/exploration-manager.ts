@@ -35,7 +35,7 @@ export function startExploration(region: Region): Exploration {
   const enabledProviders = getAvailableEnabledProviders(selectedProviders)
     .map(p => p.getProvider())
 
-  console.log('Starting exploration with providers:', enabledProviders)
+
 
   // Generate tile grid
   const tiles = calculateTileGrid(region.bounds, tileSize, region.id)

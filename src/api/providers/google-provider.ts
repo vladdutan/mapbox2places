@@ -9,46 +9,17 @@ import { Provider, PROVIDER_COSTS, PROVIDER_NAMES, type ProviderPlace } from '..
 import type { Bounds, Coordinates } from '../../types/exploration.types'
 import { handleError } from '../../utils/error-handler'
 import { ErrorCategory } from '../../types/events.types'
-import { isGoogleMapsLoaded } from '../../utils/google-loader'
+import { isGoogleMapsLoaded, loadGoogleMaps } from '../../utils/google-loader'
 
 import { enqueue } from '../queue'
 
-const GOOGLE_TOKEN_KEY = 'map2places_google_api_key'
-
-/**
- * Get Google Maps API key from environment or localStorage
- */
-export function getGoogleApiKey(): string | null {
-  // Check localStorage first
-  const storedKey = localStorage.getItem(GOOGLE_TOKEN_KEY)
-  if (storedKey) return storedKey
-
-  // Fall back to environment variable
-  const envKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-  if (envKey) return envKey
-
-  return null
-}
-
-/**
- * Save Google API key to localStorage
- */
-export function saveGoogleApiKey(key: string): void {
-  localStorage.setItem(GOOGLE_TOKEN_KEY, key)
-}
-
-/**
- * Clear saved Google API key
- */
-export function clearGoogleApiKey(): void {
-  localStorage.removeItem(GOOGLE_TOKEN_KEY)
-}
+import { getEffectiveGoogleToken } from '../../utils/config'
 
 /**
  * Initialize Google Maps if key is available
  */
 export function initializeGoogleMaps(): void {
-  const key = getGoogleApiKey()
+  const key = getEffectiveGoogleToken()
   if (key) {
     // Fire and forget - will be available when loaded
     import('../../utils/google-loader').then(({ loadGoogleMaps }) => {
@@ -73,7 +44,7 @@ export class GoogleProvider implements POIProvider {
   }
 
   isAvailable(): boolean {
-    return isGoogleMapsLoaded() && getGoogleApiKey() !== null
+    return getEffectiveGoogleToken() !== null
   }
 
   getCostPer1000Requests(): number {
@@ -97,8 +68,18 @@ export class GoogleProvider implements POIProvider {
     center: Coordinates,
     bbox: Bounds
   ): Promise<ProviderPlace[]> {
-    if (!this.isAvailable()) {
-      throw new Error('Google Provider not available (Key missing or Script not loaded)')
+    const key = getEffectiveGoogleToken()
+    if (!key) {
+      throw new Error('Google Maps API key not configured')
+    }
+
+    // Ensure script is loaded before proceeding
+    if (!isGoogleMapsLoaded()) {
+      try {
+        await loadGoogleMaps(key)
+      } catch (error) {
+        throw new Error('Failed to load Google Maps script: ' + String(error))
+      }
     }
 
     const compiledCategory = this.mapCategory(category)

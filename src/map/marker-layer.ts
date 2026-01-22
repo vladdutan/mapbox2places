@@ -111,6 +111,7 @@ export function initializeMarkerLayer(): void {
           ['get', 'provider'],
           Provider.Mapbox, PROVIDER_COLORS[Provider.Mapbox],
           Provider.Google, PROVIDER_COLORS[Provider.Google],
+          Provider.Foursquare, PROVIDER_COLORS[Provider.Foursquare],
           CIRCLE_COLOR // default fallback
         ],
         'circle-stroke-color': CIRCLE_STROKE_COLOR,

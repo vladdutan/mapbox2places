@@ -14,8 +14,7 @@ import { ExplorationStatus } from '../types/exploration.types'
 import { Provider, PROVIDER_NAMES, PROVIDER_COLORS } from '../types/provider.types'
 import { setMarkerProviderVisibility } from '../map/marker-layer'
 import { isProviderAvailable } from '../api/providers'
-import { saveGoogleApiKey, getGoogleApiKey } from '../api/providers/google-provider'
-import { loadGoogleMaps } from '../utils/google-loader'
+
 
 /**
  * Initialize stats panel updates
@@ -74,7 +73,7 @@ function renderStatsPanel(): void {
   attachTileSizeListener()
   attachCategoryListener()
   attachProviderSelectListener()
-  attachGoogleKeyListeners()
+
   attachStartExplorationListener()
   attachMapControlsListener()
 }
@@ -291,26 +290,7 @@ function renderConfigurationStage(region: Region): string {
           </div>
           </div>
           
-          <!-- Google API Key Config -->
-          <div id="google-api-config" class="mt-2 ${getGoogleApiKey() ? 'hidden' : ''}">
-             <div class="flex gap-1">
-               <input 
-                 type="password" 
-                 id="google-api-key-input" 
-                 placeholder="Enter Google API Key" 
-                 class="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-               />
-               <button 
-                 type="button" 
-                 id="save-google-key-btn" 
-                 class="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs rounded"
-               >
-                 Save
-               </button>
-             </div>
-             <p class="text-[10px] text-gray-500 mt-1">Key required for Google Places</p>
           </div>
-        </div>
 
         <!-- POI Categories -->
         <div>
@@ -632,43 +612,7 @@ function attachMapControlsListener(): void {
 }
 
 
-/**
- * Attach listeners for Google API key input
- */
-function attachGoogleKeyListeners(): void {
-  const saveBtn = document.getElementById('save-google-key-btn')
-  const input = document.getElementById('google-api-key-input') as HTMLInputElement
 
-  if (saveBtn && input) {
-    saveBtn.addEventListener('click', async () => {
-      const key = input.value.trim()
-      if (!key) return
-
-      try {
-        saveGoogleApiKey(key)
-        
-        // Show loading state
-        saveBtn.textContent = 'Loading...'
-        ;(saveBtn as HTMLButtonElement).disabled = true
-        
-        await loadGoogleMaps(key)
-        
-        // Success - trigger re-render to hide input
-        window.dispatchEvent(new CustomEvent<{ type: string }>('state:changed', { 
-          detail: { type: 'config' } 
-        }))
-        
-      } catch (err) {
-        console.error('Failed to load Google Maps:', err)
-        saveBtn.textContent = 'Error'
-        setTimeout(() => {
-          saveBtn.textContent = 'Save'
-          ;(saveBtn as HTMLButtonElement).disabled = false
-        }, 2000)
-      }
-    })
-  }
-}
 
 /**
  * Attach listeners for provider selection toggles (configuration)
@@ -678,7 +622,7 @@ function attachProviderSelectListener(): void {
   toggles.forEach(toggle => {
     toggle.addEventListener('change', (e) => {
       const target = e.target as HTMLInputElement
-      console.log('Toggling provider:', target.value, 'checked:', target.checked)
+
       toggleSelectedProvider(target.value as Provider)
     })
   })

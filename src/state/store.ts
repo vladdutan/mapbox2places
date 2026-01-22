@@ -238,7 +238,7 @@ export function updateTileStatus(explorationId: string, tileId: string, status: 
 export function updateTileProviderStatus(
   explorationId: string,
   tileId: string,
-  provider: 'mapbox' | 'google',
+  provider: 'mapbox' | 'google' | 'foursquare',
   status: 'pending' | 'complete' | 'error'
 ): void {
   const tiles = state.tiles.get(explorationId)

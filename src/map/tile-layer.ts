@@ -219,8 +219,7 @@ function tileToFeature(tile: Tile): GeoJSON.Feature<GeoJSON.Polygon> {
       status: tile.status,
       // Flatten provider status for property access in Mapbox expressions
       'mapbox-status': tile.providerStatus?.mapbox || 'pending',
-      'google-status': tile.providerStatus?.google || 'pending',
-      'osm-status': tile.providerStatus?.osm || 'pending'
+      'google-status': tile.providerStatus?.google || 'pending'
     },
     geometry: {
       type: 'Polygon',

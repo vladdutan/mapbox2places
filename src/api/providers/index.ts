@@ -7,13 +7,16 @@ import type { POIProvider } from './provider.interface'
 import { Provider } from '../../types/provider.types'
 import { mapboxProvider } from './mapbox-provider'
 import { googleProvider } from './google-provider'
+import { foursquareProvider } from './foursquare-provider'
+import { hasMapboxToken, hasGoogleToken, hasFoursquareToken } from '../../utils/config'
 
 /**
  * Map of all registered providers
  */
 const providerRegistry: Record<Provider, POIProvider> = {
   [Provider.Mapbox]: mapboxProvider,
-  [Provider.Google]: googleProvider
+  [Provider.Google]: googleProvider,
+  [Provider.Foursquare]: foursquareProvider
 }
 
 /**
@@ -59,8 +62,16 @@ export function getEnabledProviders(enabledProviderIds?: Provider[]): POIProvide
  * Check if a specific provider is available
  */
 export function isProviderAvailable(providerId: Provider): boolean {
-  const provider = providerRegistry[providerId]
-  return provider?.isAvailable() ?? false
+  switch (providerId) {
+    case Provider.Mapbox:
+      return hasMapboxToken()
+    case Provider.Google:
+      return hasGoogleToken()
+    case Provider.Foursquare:
+      return hasFoursquareToken()
+    default:
+      return false
+  }
 }
 
 /**
@@ -69,6 +80,7 @@ export function isProviderAvailable(providerId: Provider): boolean {
 export function getProviderStatus(): Record<Provider, boolean> {
   return {
     [Provider.Mapbox]: mapboxProvider.isAvailable(),
-    [Provider.Google]: googleProvider.isAvailable()
+    [Provider.Google]: googleProvider.isAvailable(),
+    [Provider.Foursquare]: foursquareProvider.isAvailable()
   }
 }
