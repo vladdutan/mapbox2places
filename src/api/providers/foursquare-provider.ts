@@ -13,7 +13,7 @@ import { ErrorCategory } from '../../types/events.types'
 import { getEffectiveFoursquareToken } from '../../utils/config'
 import { logDebug } from '../../utils/logger'
 
-const SEARCH_BASE_URL = '/foursquare/places/search'
+const SEARCH_BASE_URL = 'https://places-api.foursquare.com/place/search'
 const MAX_RESULTS = 50
 
 /**

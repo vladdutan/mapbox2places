@@ -45,7 +45,7 @@ const initialState: AppState = {
   modalOpen: false,
   tileSize: DEFAULT_TILE_SIZE,
   selectedCategories: [...DEFAULT_CATEGORIES],
-  selectedProviders: [Provider.Mapbox, Provider.Google], // Default: Mapbox & Google
+  selectedProviders: [Provider.Mapbox, Provider.Google, Provider.Foursquare], // Default: Mapbox, Google & Foursquare
   mapboxToken: null
 }
 
