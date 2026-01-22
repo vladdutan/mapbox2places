@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/foursquare/places/search",
+      "destination": "https://places-api.foursquare.com/places/search"
+    }
+  ]
+}
