@@ -6,6 +6,7 @@
 import type { AppState } from '../types/state.types'
 import type { Exploration, Region, Tile, Place, Bounds } from '../types/exploration.types'
 import { TileStatus } from '../types/exploration.types'
+import { Provider } from '../types/provider.types'
 
 // Default tile size in meters
 export const DEFAULT_TILE_SIZE = 500
@@ -29,11 +30,12 @@ export const POI_CATEGORIES = [
 // Default categories
 export const DEFAULT_CATEGORIES = ['grocery']
 
-// Initial state
+
 const initialState: AppState = {
   currentRegionId: null,
   currentExplorationId: null,
   selectedPlaceId: null,
+  pendingRegion: null,
   regions: [],
   tiles: new Map(),
   places: new Map(),
@@ -43,6 +45,7 @@ const initialState: AppState = {
   modalOpen: false,
   tileSize: DEFAULT_TILE_SIZE,
   selectedCategories: [...DEFAULT_CATEGORIES],
+  selectedProviders: [Provider.Mapbox, Provider.Google], // Default: Mapbox & Google
   mapboxToken: null
 }
 
@@ -55,7 +58,15 @@ export function getState(): Readonly<AppState> {
 }
 
 export function getCurrentRegion(): Region | undefined {
-  return state.regions.find(r => r.id === state.currentRegionId)
+  const savedRegion = state.regions.find(r => r.id === state.currentRegionId)
+  if (savedRegion) return savedRegion
+  
+  // Check pending region if not found in saved regions
+  if (state.pendingRegion?.id === state.currentRegionId) {
+    return state.pendingRegion
+  }
+  
+  return undefined
 }
 
 export function getCurrentExploration(): Exploration | undefined {
@@ -88,30 +99,98 @@ export function addRegion(region: Region): void {
 
 export function removeRegion(regionId: string): void {
   const newRegions = state.regions.filter(r => r.id !== regionId)
+  
+  // Clean up associated explorations
+  const explorationsToRemove = state.explorations.filter(e => e.regionId === regionId)
+  const newExplorations = state.explorations.filter(e => e.regionId !== regionId)
+  
+  // Clean up associated tiles
+  const newTiles = new Map(state.tiles)
+  explorationsToRemove.forEach(e => newTiles.delete(e.id))
+  
+  // Clean up associated places
+  const newPlaces = new Map(state.places)
+  newPlaces.delete(regionId)
+
+  // Determine new current region
   const newCurrentRegionId = state.currentRegionId === regionId
     ? (newRegions.length > 0 ? newRegions[0].id : null)
     : state.currentRegionId
 
+  // If we switched regions, we need to find the new current exploration
+  let newCurrentExplorationId = state.currentExplorationId
+  if (state.currentRegionId === regionId) {
+    if (newCurrentRegionId) {
+       const nextExploration = newExplorations.find(e => e.regionId === newCurrentRegionId)
+       newCurrentExplorationId = nextExploration?.id || null
+    } else {
+      newCurrentExplorationId = null
+    }
+  }
+
   state = {
     ...state,
     regions: newRegions,
-    currentRegionId: newCurrentRegionId
+    explorations: newExplorations,
+    tiles: newTiles,
+    places: newPlaces,
+    currentRegionId: newCurrentRegionId,
+    currentExplorationId: newCurrentExplorationId
   }
   dispatchStateChange('region')
+  dispatchStateChange('exploration')
+  // We don't dispatch tile/place changes explicitly as they aren't usually displayed without a region selected,
+  // but dispatching them wouldn't hurt. For now, region/exploration should trigger enough UI updates.
 }
 
 export function updateRegionBounds(regionId: string, bounds: Bounds): void {
+  // Update saved regions
+  const updatedRegions = state.regions.map(r =>
+    r.id === regionId ? { ...r, bounds } : r
+  )
+
+  // Update pending region if it matches
+  const updatedPendingRegion = state.pendingRegion?.id === regionId
+    ? { ...state.pendingRegion, bounds }
+    : state.pendingRegion
+
   state = {
     ...state,
-    regions: state.regions.map(r =>
-      r.id === regionId ? { ...r, bounds } : r
-    )
+    regions: updatedRegions,
+    pendingRegion: updatedPendingRegion
   }
   dispatchStateChange('region')
 }
 
 export function getRegions(): readonly Region[] {
   return state.regions
+}
+
+export function getPendingRegion(): Region | null {
+  return state.pendingRegion
+}
+
+export function setPendingRegion(region: Region | null): void {
+  // Clear stale exploration when setting a pending region
+  state = { 
+    ...state, 
+    pendingRegion: region, 
+    currentRegionId: region?.id || null,
+    currentExplorationId: null 
+  }
+  dispatchStateChange('region')
+  dispatchStateChange('exploration')
+}
+
+export function savePendingRegion(): void {
+  if (state.pendingRegion) {
+    state = { 
+      ...state, 
+      regions: [...state.regions, state.pendingRegion],
+      pendingRegion: null 
+    }
+    dispatchStateChange('region')
+  }
 }
 
 export function addExploration(exploration: Exploration): void {
@@ -156,12 +235,38 @@ export function updateTileStatus(explorationId: string, tileId: string, status: 
   dispatchStateChange('tile')
 }
 
+export function updateTileProviderStatus(
+  explorationId: string,
+  tileId: string,
+  provider: 'mapbox' | 'google' | 'foursquare',
+  status: 'pending' | 'complete' | 'error'
+): void {
+  const tiles = state.tiles.get(explorationId)
+  if (!tiles) return
+
+  const updatedTiles = tiles.map(tile => {
+    if (tile.id !== tileId) return tile
+    return {
+      ...tile,
+      providerStatus: {
+        ...tile.providerStatus,
+        [provider]: status
+      }
+    }
+  })
+
+  const newTiles = new Map(state.tiles)
+  newTiles.set(explorationId, updatedTiles)
+  state = { ...state, tiles: newTiles }
+  dispatchStateChange('tile')
+}
+
 export function addPlaces(regionId: string, places: Place[]): void {
   const existingPlaces = state.places.get(regionId) || []
 
-  // Filter out duplicates by mapboxId
-  const existingIds = new Set(existingPlaces.map(p => p.mapboxId))
-  const newPlaces = places.filter(p => !existingIds.has(p.mapboxId))
+  // Filter out duplicates by provider + providerId combination
+  const existingKeys = new Set(existingPlaces.map(p => `${p.provider}:${p.providerId}`))
+  const newPlaces = places.filter(p => !existingKeys.has(`${p.provider}:${p.providerId}`))
 
   const newPlacesMap = new Map(state.places)
   newPlacesMap.set(regionId, [...existingPlaces, ...newPlaces])
@@ -205,6 +310,26 @@ export function addCategory(category: string): void {
 
 export function removeCategory(category: string): void {
   state = { ...state, selectedCategories: state.selectedCategories.filter(c => c !== category) }
+  dispatchStateChange('config')
+}
+
+export function getSelectedProviders(): import('../types/provider.types').Provider[] {
+  return state.selectedProviders
+}
+
+export function setSelectedProviders(providers: import('../types/provider.types').Provider[]): void {
+  state = { ...state, selectedProviders: providers }
+  dispatchStateChange('config')
+}
+
+export function toggleSelectedProvider(provider: import('../types/provider.types').Provider): void {
+  const current = state.selectedProviders
+  const isSelected = current.includes(provider)
+  const newSelection = isSelected
+    ? current.filter(p => p !== provider)
+    : [...current, provider]
+
+  state = { ...state, selectedProviders: newSelection }
   dispatchStateChange('config')
 }
 

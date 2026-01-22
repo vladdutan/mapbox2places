@@ -7,7 +7,7 @@ import type { MapboxGeocodingFeature } from '../types/api.types'
 import type { Region, Bounds } from '../types/exploration.types'
 import { renderSearchResults, showSearchResults, getSearchInput } from './layout'
 import { fitBounds, flyTo } from '../map/map'
-import { addRegion, setCurrentRegion } from '../state/store'
+import { setPendingRegion, setCurrentRegion } from '../state/store'
 import type { SearchCompletedPayload } from './search'
 
 /**
@@ -105,8 +105,8 @@ function selectResult(feature: MapboxGeocodingFeature): void {
     createdAt: new Date().toISOString()
   }
 
-  // Add to store and set as current
-  addRegion(region)
+  // Set as pending region (not saved to history yet)
+  setPendingRegion(region)
   setCurrentRegion(region.id)
 
   // Zoom map to region

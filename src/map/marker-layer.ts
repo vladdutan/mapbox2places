@@ -6,6 +6,7 @@
 import type { GeoJSONSource } from 'mapbox-gl'
 import type { Place } from '../types/exploration.types'
 import type { PlaceFetchedPayload, PlaceSelectedPayload } from '../types/events.types'
+import { Provider, PROVIDER_COLORS } from '../types/provider.types'
 import { getMap } from './map'
 import { getPlaces, getCurrentExploration } from '../state/store'
 
@@ -105,7 +106,14 @@ export function initializeMarkerLayer(): void {
       filter: ['!', ['has', 'point_count']],
       paint: {
         'circle-radius': CIRCLE_RADIUS,
-        'circle-color': CIRCLE_COLOR,
+        'circle-color': [
+          'match',
+          ['get', 'provider'],
+          Provider.Mapbox, PROVIDER_COLORS[Provider.Mapbox],
+          Provider.Google, PROVIDER_COLORS[Provider.Google],
+          Provider.Foursquare, PROVIDER_COLORS[Provider.Foursquare],
+          CIRCLE_COLOR // default fallback
+        ],
         'circle-stroke-color': CIRCLE_STROKE_COLOR,
         'circle-stroke-width': CIRCLE_STROKE_WIDTH
       }
@@ -170,7 +178,8 @@ export function initializeMarkerLayer(): void {
       id: properties.id,
       tileId: '', // Not stored in feature, not needed for modal
       regionId: '', // Not stored in feature, not needed for modal
-      mapboxId: properties.mapboxId,
+      provider: (properties.provider || Provider.Mapbox) as Provider,
+      providerId: properties.providerId,
       name: properties.name,
       category: properties.category,
       coordinates: geometry.coordinates as [number, number],
@@ -300,7 +309,8 @@ function placesToFeatureCollection(places: Place[]): GeoJSON.FeatureCollection<G
       type: 'Feature' as const,
       properties: {
         id: place.id,
-        mapboxId: place.mapboxId,
+        provider: place.provider,
+        providerId: place.providerId,
         name: place.name,
         category: place.category,
         address: place.metadata.address || '',
@@ -336,4 +346,29 @@ export function clearMarkers(): void {
     currentRegionId = null
     source.setData(createEmptyFeatureCollection())
   }
+}
+
+/**
+ * Filter displayed markers by provider
+ * @param visibleProviders - Array of providers to show
+ */
+export function setMarkerProviderVisibility(visibleProviders: Provider[]): void {
+  const map = getMap()
+  if (!map) return
+
+  // Filter individual markers
+  if (map.getLayer(POI_LAYER_ID)) {
+    const filter = [
+      'all',
+      ['!', ['has', 'point_count']],
+      ['in', ['get', 'provider'], ['literal', visibleProviders]]
+    ]
+    map.setFilter(POI_LAYER_ID, filter)
+  }
+
+  // Filter clusters (this is tricker as clusters are pre-calculated)
+  // For now, clusters will show all points, but individual points filter works.
+  // Ideally, we'd filter the DATA itself, but that's expensive for client-side clustering.
+  // Mapbox GL JS doesn't support filtering inside clusters easily without reloading source.
+  // Given the constraint, we'll just filter visible markers.
 }

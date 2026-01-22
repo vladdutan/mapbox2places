@@ -4,13 +4,17 @@
  */
 
 import { updateStatsContent } from './layout'
-import { getCurrentRegion, getRegions, setCurrentRegion, removeRegion, getTileSize, setTileSize, TILE_SIZE_OPTIONS, getSelectedCategories, addCategory, removeCategory, POI_CATEGORIES, getCurrentExploration, getExplorationByRegion, setCurrentExploration, getAllExplorations } from '../state/store'
+import { getCurrentRegion, getRegions, setCurrentRegion, removeRegion, getTileSize, setTileSize, TILE_SIZE_OPTIONS, getSelectedCategories, addCategory, removeCategory, POI_CATEGORIES, getCurrentExploration, getExplorationByRegion, setCurrentExploration, getAllExplorations, getSelectedProviders, toggleSelectedProvider } from '../state/store'
 import { setOverlayVisibility, getOverlayVisibility } from '../map/tile-layer'
 import { fitBounds, flyTo } from '../map/map'
 import { estimateTileCount } from '../exploration/tile-calculator'
 import { startExploration } from '../exploration/exploration-manager'
 import type { Region } from '../types/exploration.types'
 import { ExplorationStatus } from '../types/exploration.types'
+import { Provider, PROVIDER_NAMES, PROVIDER_COLORS } from '../types/provider.types'
+import { setMarkerProviderVisibility } from '../map/marker-layer'
+import { isProviderAvailable } from '../api/providers'
+
 
 /**
  * Initialize stats panel updates
@@ -21,11 +25,13 @@ export function initializeStatsPanel(): void {
   window.addEventListener('state:changed', ((e: CustomEvent<{ type: string }>) => {
     if (e.detail.type === 'region' || e.detail.type === 'config' || e.detail.type === 'exploration' || e.detail.type === 'tile') {
       renderStatsPanel()
+      renderNavbarRegions() // Update navbar regions
     }
   }) as EventListener)
 
   // Initial render
   renderStatsPanel()
+  renderNavbarRegions()
 }
 
 /**
@@ -35,66 +41,111 @@ function renderStatsPanel(): void {
   const regions = getRegions()
   const currentRegion = getCurrentRegion()
 
-  if (regions.length === 0) {
+  // Only show empty state if no regions AND no current (pending) region
+  if (regions.length === 0 && !currentRegion) {
     renderEmptyState()
     return
   }
 
-  const html = `
-    <!-- Regions List -->
-    <div class="mb-6">
-      <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-        Regions <span class="text-gray-400">(${regions.length})</span>
-      </h3>
-      <div class="space-y-1" id="regions-list">
-        ${regions.map(region => renderRegionItem(region, region.id === currentRegion?.id)).join('')}
-      </div>
-    </div>
+  const currentExploration = getCurrentExploration()
+  const isExplorationCompleted = currentExploration?.status === ExplorationStatus.Completed
+  const isExplorationRunning = currentExploration?.status === ExplorationStatus.Running
 
-    ${currentRegion ? renderCurrentRegionInfo(currentRegion) : ''}
-
-    ${renderMapControls()}
-
-    ${renderQuickStats()}
-  `
+  // Determine which stage to show
+  let html = ''
+  
+  if (isExplorationCompleted) {
+    // RESULTS STAGE: Show completed exploration results
+    html = `
+      ${renderExplorationResults(currentRegion!, currentExploration!)}
+      ${renderMapControls()}
+      ${renderQuickStats()}
+    `
+  } else if (isExplorationRunning) {
+    // RUNNING STAGE: Show exploration in progress
+    html = renderExplorationStatus(currentRegion!, currentExploration!)
+  } else {
+    // CONFIGURATION STAGE: Show configuration options for new/uncompleted regions
+    html = renderConfigurationStage(currentRegion!)
+  }
 
   updateStatsContent(html)
-  attachRegionListeners()
   attachTileSizeListener()
   attachCategoryListener()
+  attachProviderSelectListener()
+
   attachStartExplorationListener()
   attachMapControlsListener()
 }
 
 /**
- * Render a single region item in the list
+ * Render regions in the navbar history container
  */
-function renderRegionItem(region: Region, isSelected: boolean): string {
-  const bgClass = isSelected ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-  const textClass = isSelected ? 'text-blue-800' : 'text-gray-700'
+function renderNavbarRegions(): void {
+  const navbarContainer = document.getElementById('regions-history')
+  if (!navbarContainer) return
 
-  // Extract short name (first part before comma)
-  const shortName = region.name.split(',')[0].trim()
+  const regions = getRegions()
+  const currentRegion = getCurrentRegion()
+  const allExplorations = getAllExplorations()
+
+  // Filter regions to only those with explorations
+  const regionsWithExplorations = regions.filter(region => {
+    const exploration = allExplorations.find(exp => exp.regionId === region.id)
+    return exploration !== undefined
+  })
+
+  if (regionsWithExplorations.length === 0) {
+    navbarContainer.innerHTML = '<span class="text-sm text-gray-400">No explorations</span>'
+    return
+  }
+
+  const items: string[] = []
+  
+  // Only show regions that have explorations
+  items.push(...regionsWithExplorations.map(region => 
+    renderNavbarRegionItem(region, region.id === currentRegion?.id, false)
+  ))
+
+  navbarContainer.innerHTML = items.join('')
+
+  // Attach event listeners for navbar regions
+  attachNavbarRegionListeners()
+}
+
+/**
+ * Render a single region as a compact chip for the navbar
+ */
+function renderNavbarRegionItem(region: Region, isSelected: boolean, isPending: boolean = false): string {
+  const bgClass = isSelected ? 'bg-blue-600' : (isPending ? 'bg-yellow-100 border-yellow-300 border-dashed' : 'bg-gray-200 hover:bg-gray-300')
+  const textClass = isSelected ? 'text-white' : (isPending ? 'text-yellow-800 font-semibold' : 'text-gray-700')
+  const removeClass = isSelected ? 'text-blue-200 hover:text-white' : (isPending ? 'text-yellow-600 hover:text-yellow-800' : 'text-gray-500 hover:text-gray-700')
+
+  // Use 'New Exploration' for pending, otherwise short name
+  const displayName = isPending ? 'New Exploration' : region.name.split(',')[0].trim()
+  const titleName = region.name
 
   return `
-    <div class="flex items-center gap-2 p-2 rounded-lg border ${bgClass} group" data-region-id="${region.id}">
+    <div class="flex items-center gap-1.5 ${bgClass} rounded-full px-3 py-1.5 transition-colors flex-shrink-0 ${isPending ? 'border' : ''}" data-navbar-region-id="${region.id}">
       <button
         type="button"
-        class="flex-1 text-left text-sm font-medium ${textClass} truncate region-select-btn"
-        title="${escapeHtml(region.name)}"
+        class="text-sm ${textClass} truncate max-w-[120px] navbar-region-select-btn"
+        title="${escapeHtml(titleName)}"
       >
-        ${escapeHtml(shortName)}
+        ${escapeHtml(displayName)}
       </button>
+      ${!isPending ? `
       <button
         type="button"
-        class="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors region-remove-btn"
+        class="${removeClass} hover:bg-black/10 rounded-full p-0.5 transition-colors navbar-region-remove-btn"
         title="Remove region"
         data-region-id="${region.id}"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+      ` : ''}
     </div>
   `
 }
@@ -110,25 +161,94 @@ function formatTileSize(size: number): string {
 }
 
 /**
- * Render current region info section
+ * Render exploration results when completed
  */
-function renderCurrentRegionInfo(region: Region): string {
+function renderExplorationResults(region: Region, exploration: import('../types/exploration.types').Exploration): string {
+  const { stats } = exploration
+  const categoryLabels = exploration.categories.map(catId => {
+    const cat = POI_CATEGORIES.find(c => c.id === catId)
+    return cat ? cat.label : catId
+  })
+
+  return `
+    <!-- Current Region Details -->
+    <div class="mb-6">
+      <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Selected Region</h3>
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p class="text-sm font-medium text-blue-800 leading-snug">${escapeHtml(region.name)}</p>
+      </div>
+    </div>
+
+    <!-- Exploration Complete -->
+    <div class="mb-6">
+      <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Exploration Complete</h3>
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
+        <!-- Categories -->
+        <div>
+          <span class="text-sm text-gray-600 block mb-1">Categories</span>
+          <div class="flex flex-wrap gap-1">
+            ${categoryLabels.map(label => `
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">${label}</span>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Tile Size -->
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-gray-600">Tile Size</span>
+          <span class="text-sm font-medium text-gray-800">${formatTileSize(exploration.tileSize)} × ${formatTileSize(exploration.tileSize)}</span>
+        </div>
+
+        <!-- Stats -->
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-gray-600">Places Found</span>
+          <span class="text-sm font-medium text-gray-800">${stats.placesFound.toLocaleString()}</span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-gray-600">Total Tiles</span>
+          <span class="text-sm font-medium text-gray-800">${stats.tilesTotal.toLocaleString()}</span>
+        </div>
+
+        ${stats.tilesFailed > 0 ? `
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-gray-600">Tiles Failed</span>
+          <span class="text-sm font-medium text-red-600">${stats.tilesFailed.toLocaleString()}</span>
+        </div>
+        ` : ''}
+
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-gray-600">API Requests</span>
+          <span class="text-sm font-medium text-gray-800">${stats.requestsMade.toLocaleString()}</span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-gray-600 flex items-center gap-1">
+            Est. Cost
+            <a href="https://www.mapbox.com/pricing" target="_blank" rel="noopener" title="Mapbox Pricing - $1.70 per 1000 requests" class="text-gray-400 hover:text-blue-500">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+            </a>
+          </span>
+          <span class="text-sm font-medium text-gray-800" title="${stats.requestsMade.toLocaleString()} requests">${stats.estimatedCost.toFixed(2)}</span>
+        </div>
+
+        ${renderProviderStatsBreakdown(stats.providerStats)}
+      </div>
+    </div>
+  `
+}
+
+/**
+ * Render configuration stage for new or uncompleted regions
+ * Shows full configuration options: providers, categories, tile size
+ */
+function renderConfigurationStage(region: Region): string {
   const tileSize = getTileSize()
   const tileCount = estimateTileCount(region.bounds, tileSize)
   const selectedCategories = getSelectedCategories()
-  const currentExploration = getCurrentExploration()
-  const isExplorationRunning = currentExploration?.status === ExplorationStatus.Running
-  const isExplorationCompleted = currentExploration?.status === ExplorationStatus.Completed
-
-  // If exploration is running for this region, show exploration status
-  if (currentExploration && currentExploration.regionId === region.id && isExplorationRunning) {
-    return renderExplorationStatus(region, currentExploration)
-  }
-
-  // If exploration is completed for this region, show completion summary
-  if (currentExploration && currentExploration.regionId === region.id && isExplorationCompleted) {
-    return renderExplorationComplete(region, currentExploration)
-  }
+  const selectedProviders = getSelectedProviders()
 
   // Get available categories (not yet selected)
   const availableCategories = POI_CATEGORIES.filter(cat => !selectedCategories.includes(cat.id))
@@ -146,6 +266,32 @@ function renderCurrentRegionInfo(region: Region): string {
     <div class="mb-6">
       <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Configuration</h3>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+        <!-- Providers Selection -->
+        <div>
+          <span class="text-sm text-gray-600 block mb-2">Active Providers</span>
+          <div class="space-y-1.5 bg-white border border-gray-200 rounded p-2">
+            ${Object.values(Provider).map(provider => {
+              const isSelected = selectedProviders.includes(provider)
+              const available = isProviderAvailable(provider)
+              const name = PROVIDER_NAMES[provider]
+              
+              return `
+                <label class="flex items-center gap-2 cursor-pointer ${!available ? 'opacity-50 cursor-not-allowed' : ''}">
+                  <input type="checkbox" 
+                    class="provider-select-toggle w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    value="${provider}"
+                    ${isSelected ? 'checked' : ''}
+                    ${!available ? 'disabled' : ''}
+                  >
+                  <span class="text-sm text-gray-700">${name}</span>
+                </label>
+              `
+            }).join('')}
+          </div>
+          </div>
+          
+          </div>
+
         <!-- POI Categories -->
         <div>
           <span class="text-sm text-gray-600 block mb-2">Categories</span>
@@ -299,97 +445,59 @@ function renderExplorationStatus(region: Region, exploration: import('../types/e
               </svg>
             </a>
           </span>
-          <span class="text-sm font-medium text-gray-800" title="${stats.requestsMade.toLocaleString()} requests × $0.0017">$${stats.estimatedCost.toFixed(2)}</span>
+          <span class="text-sm font-medium text-gray-800" title="${stats.requestsMade.toLocaleString()} requests">${stats.estimatedCost.toFixed(2)}</span>
         </div>
+
+        ${renderProviderStatsBreakdown(stats.providerStats)}
       </div>
     </div>
   `
 }
 
 /**
- * Render exploration complete status
+ * Render per-provider stats breakdown
  */
-function renderExplorationComplete(region: Region, exploration: import('../types/exploration.types').Exploration): string {
-  const { stats } = exploration
-  const categoryLabels = exploration.categories.map(catId => {
-    const cat = POI_CATEGORIES.find(c => c.id === catId)
-    return cat ? cat.label : catId
-  })
-  const completedAt = exploration.completedAt ? new Date(exploration.completedAt).toLocaleTimeString() : ''
+function renderProviderStatsBreakdown(providerStats: import('../types/provider.types').ProviderStatsMap | undefined): string {
+  if (!providerStats) return ''
+
+  // Get providers that have data
+  const activeProviders = Object.entries(providerStats).filter(
+    ([_, stats]) => stats && (stats.requestsMade > 0 || stats.placesFound > 0)
+  )
+
+  if (activeProviders.length === 0) return ''
 
   return `
-    <!-- Current Region Details -->
-    <div class="mb-6">
-      <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Selected Region</h3>
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p class="text-sm font-medium text-blue-800 leading-snug">${escapeHtml(region.name)}</p>
-      </div>
-    </div>
-
-    <!-- Exploration Complete -->
-    <div class="mb-6">
-      <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-        <span class="inline-flex items-center gap-1">
-          <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-          </svg>
-          Exploration Complete
-        </span>
-      </h3>
-      <div class="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
-        <!-- Categories -->
-        <div>
-          <span class="text-sm text-gray-600 block mb-1">Categories</span>
-          <div class="flex flex-wrap gap-1">
-            ${categoryLabels.map(label => `
-              <span class="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded-full">${label}</span>
-            `).join('')}
-          </div>
-        </div>
-
-        <!-- Completed At -->
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-600">Completed</span>
-          <span class="text-sm font-medium text-gray-800">${completedAt}</span>
-        </div>
-
-        <!-- Divider -->
-        <div class="border-t border-green-200"></div>
-
-        <!-- Final Stats -->
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-600">Tiles Processed</span>
-          <span class="text-sm font-medium text-gray-800">${stats.tilesCompleted.toLocaleString()} / ${stats.tilesTotal.toLocaleString()}</span>
-        </div>
-
-        ${stats.tilesFailed > 0 ? `
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-600">Tiles Failed</span>
-          <span class="text-sm font-medium text-red-600">${stats.tilesFailed.toLocaleString()}</span>
-        </div>
-        ` : ''}
-
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-600">Places Found</span>
-          <span class="text-sm font-medium text-green-700 text-lg">${stats.placesFound.toLocaleString()}</span>
-        </div>
-
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-600">API Requests</span>
-          <span class="text-sm font-medium text-gray-800">${stats.requestsMade.toLocaleString()}</span>
-        </div>
-
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-600 flex items-center gap-1">
-            Est. Cost
-            <a href="https://www.mapbox.com/pricing" target="_blank" rel="noopener" title="Mapbox Pricing - $1.70 per 1000 requests" class="text-gray-400 hover:text-blue-500">
-              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-              </svg>
-            </a>
-          </span>
-          <span class="text-sm font-medium text-gray-800" title="${stats.requestsMade.toLocaleString()} requests × $0.0017">$${stats.estimatedCost.toFixed(2)}</span>
-        </div>
+    <!-- Provider Breakdown -->
+    <div class="border-t border-green-200 pt-3 mt-3">
+      <span class="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">By Provider</span>
+      <div class="space-y-2">
+        ${activeProviders.map(([providerId, stats]) => {
+          const name = PROVIDER_NAMES[providerId as Provider] || providerId
+          const color = PROVIDER_COLORS[providerId as Provider] || '#6b7280'
+          return `
+            <div class="bg-white/50 rounded p-2 border border-gray-100">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="w-2 h-2 rounded-full" style="background: ${color}"></span>
+                <span class="text-xs font-medium text-gray-700">${name}</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span class="text-gray-500">Places</span>
+                  <span class="block font-medium text-gray-800">${stats!.placesFound.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500">Requests</span>
+                  <span class="block font-medium text-gray-800">${stats!.requestsMade.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span class="text-gray-500">Cost</span>
+                  <span class="block font-medium text-gray-800">$${stats!.estimatedCost.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          `
+        }).join('')}
       </div>
     </div>
   `
@@ -405,7 +513,8 @@ function renderMapControls(): string {
     <!-- Map Controls -->
     <div class="mb-6">
       <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Map Controls</h3>
-      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+        <!-- Tile Grid Toggle -->
         <label class="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -418,6 +527,33 @@ function renderMapControls(): string {
             <p class="text-xs text-gray-500">Display region bounds and tile status</p>
           </div>
         </label>
+
+        <!-- Provider Visibility Toggles -->
+        <div class="border-t border-gray-200 pt-3">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Providers</p>
+          <div class="space-y-2">
+            ${Object.values(Provider).map(provider => {
+              const name = PROVIDER_NAMES[provider]
+              const color = PROVIDER_COLORS[provider]
+              return `
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    class="provider-visibility-toggle w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    value="${provider}"
+                    checked
+                    data-color="${color}"
+                  />
+                  <span class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full" style="background-color: ${color}"></span>
+                    <span class="text-sm text-gray-700">${name}</span>
+                  </span>
+                </label>
+              `
+            }).join('')}
+          </div>
+        </div>
+
         <div class="mt-3 pt-3 border-t border-gray-200">
           <p class="text-xs text-gray-500 mb-2">Tile colors:</p>
           <div class="grid grid-cols-2 gap-1 text-xs">
@@ -449,11 +585,46 @@ function renderMapControls(): string {
  */
 function attachMapControlsListener(): void {
   const toggle = document.getElementById('overlay-visibility-toggle') as HTMLInputElement | null
-  if (!toggle) return
+  if (toggle) {
+    toggle.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement
+      setOverlayVisibility(target.checked)
+    })
+  }
 
-  toggle.addEventListener('change', (e) => {
-    const target = e.target as HTMLInputElement
-    setOverlayVisibility(target.checked)
+  // Handle provider visibility toggles
+  const providerToggles = document.querySelectorAll('.provider-visibility-toggle')
+  if (providerToggles.length > 0) {
+    const updateVisibility = () => {
+      const visibleProviders: Provider[] = []
+      providerToggles.forEach(toggle => {
+        if ((toggle as HTMLInputElement).checked) {
+          visibleProviders.push((toggle as HTMLInputElement).value as Provider)
+        }
+      })
+      setMarkerProviderVisibility(visibleProviders)
+    }
+
+    providerToggles.forEach(toggle => {
+      toggle.addEventListener('change', updateVisibility)
+    })
+  }
+}
+
+
+
+
+/**
+ * Attach listeners for provider selection toggles (configuration)
+ */
+function attachProviderSelectListener(): void {
+  const toggles = document.querySelectorAll('.provider-select-toggle')
+  toggles.forEach(toggle => {
+    toggle.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement
+
+      toggleSelectedProvider(target.value as Provider)
+    })
   })
 }
 
@@ -512,18 +683,18 @@ function renderQuickStats(): string {
 }
 
 /**
- * Attach event listeners to region list items
+ * Attach event listeners to navbar region items
  */
-function attachRegionListeners(): void {
-  const regionsList = document.getElementById('regions-list')
-  if (!regionsList) return
+function attachNavbarRegionListeners(): void {
+  const navbarContainer = document.getElementById('regions-history')
+  if (!navbarContainer) return
 
   // Handle region selection
-  regionsList.querySelectorAll('.region-select-btn').forEach(btn => {
+  navbarContainer.querySelectorAll('.navbar-region-select-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const regionItem = (e.target as HTMLElement).closest('[data-region-id]')
+      const regionItem = (e.target as HTMLElement).closest('[data-navbar-region-id]')
       if (regionItem) {
-        const regionId = regionItem.getAttribute('data-region-id')
+        const regionId = regionItem.getAttribute('data-navbar-region-id')
         if (regionId) {
           switchToRegion(regionId)
         }
@@ -532,7 +703,7 @@ function attachRegionListeners(): void {
   })
 
   // Handle region removal
-  regionsList.querySelectorAll('.region-remove-btn').forEach(btn => {
+  navbarContainer.querySelectorAll('.navbar-region-remove-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation()
       e.preventDefault()

@@ -66,6 +66,8 @@ export function initializeTileLayer(): void {
     })
   }
 
+
+
   // Add line layer for tile borders
   if (!map.getLayer(TILES_LINE_LAYER_ID)) {
     map.addLayer({
@@ -166,6 +168,8 @@ export function setOverlayVisibility(visible: boolean): void {
     map.setLayoutProperty(TILES_LINE_LAYER_ID, 'visibility', visibility)
   }
 
+
+
   // Region layers
   if (map.getLayer('region-fill')) {
     map.setLayoutProperty('region-fill', 'visibility', visibility)
@@ -196,6 +200,9 @@ function ensureTileLayerOrder(): void {
   if (map.getLayer('region-line') && map.getLayer(TILES_FILL_LAYER_ID)) {
     map.moveLayer(TILES_FILL_LAYER_ID)
     map.moveLayer(TILES_LINE_LAYER_ID)
+    
+
+
   }
 }
 
@@ -209,7 +216,10 @@ function tileToFeature(tile: Tile): GeoJSON.Feature<GeoJSON.Polygon> {
     type: 'Feature',
     properties: {
       id: tile.id,
-      status: tile.status
+      status: tile.status,
+      // Flatten provider status for property access in Mapbox expressions
+      'mapbox-status': tile.providerStatus?.mapbox || 'pending',
+      'google-status': tile.providerStatus?.google || 'pending'
     },
     geometry: {
       type: 'Polygon',

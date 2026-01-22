@@ -2,6 +2,8 @@
  * Core domain types for map2places exploration
  */
 
+import type { Provider, ProviderStatsMap } from './provider.types'
+
 export interface Region {
   id: string
   name: string
@@ -15,6 +17,16 @@ export interface Tile {
   bounds: Bounds
   status: TileStatus
   fetchedAt: string | null // ISO 8601
+  providerStatus?: TileProviderStatus // Per-provider completion status
+}
+
+/**
+ * Tracks which providers have completed fetching for a tile
+ */
+export interface TileProviderStatus {
+  mapbox?: 'pending' | 'complete' | 'error'
+  google?: 'pending' | 'complete' | 'error'
+  foursquare?: 'pending' | 'complete' | 'error'
 }
 
 export enum TileStatus {
@@ -28,7 +40,8 @@ export interface Place {
   id: string
   tileId: string
   regionId: string
-  mapboxId: string
+  provider: Provider      // Which provider this POI came from
+  providerId: string      // Provider-specific ID (was mapboxId)
   name: string
   category: string
   coordinates: Coordinates
@@ -48,6 +61,7 @@ export interface Exploration {
   regionId: string
   categories: string[] // POI categories to search
   tileSize: number // meters
+  enabledProviders: Provider[] // Which providers to use for this exploration
   status: ExplorationStatus
   stats: ExplorationStats
   startedAt: string // ISO 8601
@@ -66,9 +80,12 @@ export interface ExplorationStats {
   tilesTotal: number
   tilesCompleted: number
   tilesFailed: number
+  // Aggregate totals
   placesFound: number
   requestsMade: number
   estimatedCost: number
+  // Per-provider breakdown
+  providerStats: ProviderStatsMap
 }
 
 /** [west, south, east, north] */
